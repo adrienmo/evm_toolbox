@@ -23,18 +23,18 @@ defmodule EvmToolbox.GasAnalyzer do
 
   @spec do_analyze(String.t(), pid(), fun()) :: :ok
   def do_analyze(code, receiver, result_callback) do
-    path = create_project(code)
-
-    combinations = for version <- @versions, ir <- [true, false], do: {version, ir}
+    combinations = for ir <- [true, false], version <- @versions, do: {version, ir}
+    max_concurrency = System.get_env("MAX_CONCURRENCY", "1") |> String.to_integer()
 
     Task.async_stream(
       combinations,
       fn {version, ir} ->
+        path = create_project(code)
         {:ok, result} = analyze_version(version, ir, path)
         send(receiver, result_callback.({version, ir, result}))
       end,
       ordered: false,
-      max_concurrency: 4,
+      max_concurrency: max_concurrency,
       timeout: :infinity
     )
     |> Stream.run()
